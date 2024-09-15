@@ -1,0 +1,2 @@
+mkdisk -size=3000 -unit=K -fit=BF -path=/home/bang/disks/disk78.bin
+rmdisk -path=/home/bang/disks/disk78.bin

@@ -1,0 +1,58 @@
+body{
+  background-color: #526666;
+}
+
+.file-input-container {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+textarea {
+  width: 600px;
+  max-width: 1500px;
+  min-height: 150px;
+  padding: 10px;
+  border: 1px solid #c5dbe6;
+  border-radius: 5px;
+  font-size: 16px;
+  resize: vertical; /* Para permitir el redimensionamiento solo vertical */
+  background-color: #919696;
+}
+
+input[type="file"] {
+  margin-top: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  background-color: #1c2c2c;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #637264;
+}
+
+.console-output {
+  background-color: #000;
+  color: #fff;
+  min-height: 200px;
+  width: 800px;
+  height: 450px;
+  max-width: 600px;
+  font-family: monospace;
+  border: 1px solid #ccc;
+  margin: 0 10px; /* Espacio horizontal entre componentes */
+  align-items: flex-start;
+  margin-top: 10px;
+}
+
+.Container{
+  display: flex;
+  align-items: top; 
+}
+
