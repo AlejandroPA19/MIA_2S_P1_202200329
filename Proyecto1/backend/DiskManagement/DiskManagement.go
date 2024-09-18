@@ -203,8 +203,9 @@ func Rmdisk(path string, messages *[]string) {
 }
 
 
-func Fdisk(size int, path string, name string, unit string, type_ string, fit string) {
+func Fdisk(size int, path string, name string, unit string, type_ string, fit string, messages *[]string) {
 	fmt.Println("======Start FDISK======")
+	*messages = append(*messages, "Iniciando con fdisk")
 	fmt.Println("Size:", size)
 	fmt.Println("Path:", path)
 	fmt.Println("Name:", name)
@@ -215,18 +216,21 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	// Validar fit (b/w/f)
 	if fit != "b" && fit != "f" && fit != "w" {
 		fmt.Println("Error: Fit must be 'b', 'f', or 'w'")
+		*messages = append(*messages, "Error: Fit must be 'b', 'f', or 'w'")
 		return
 	}
 
 	// Validar size > 0
 	if size <= 0 {
 		fmt.Println("Error: Size must be greater than 0")
+		*messages = append(*messages, "Error: Size must be greater than 0")
 		return
 	}
 
 	// Validar unit (b/k/m)
 	if unit != "b" && unit != "k" && unit != "m" {
 		fmt.Println("Error: Unit must be 'b', 'k', or 'm'")
+		*messages = append(*messages, "Error: Unit must be 'b', 'k', or 'm'")
 		return
 	}
 
@@ -241,6 +245,7 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	file, err := Utilities.OpenFile(path)
 	if err != nil {
 		fmt.Println("Error: Could not open file at path:", path)
+		*messages = append(*messages, "Error: Could not open file at path:", path)
 		return
 	}
 
@@ -248,6 +253,8 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	// Leer el objeto desde el archivo binario
 	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
 		fmt.Println("Error: Could not read MBR from file")
+		*messages = append(*messages, "Error: Could not read MBR from file")
+
 		return
 	}
 
@@ -276,24 +283,31 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	// Validar que no se exceda el número máximo de particiones primarias y extendidas
 	if totalPartitions >= 4 {
 		fmt.Println("Error: No se pueden crear más de 4 particiones primarias o extendidas en total.")
+		*messages = append(*messages, "Error: No se pueden crear más de 4 particiones primarias o extendidas en total.")
 		return
 	}
 
-	// Validar que solo haya una partición extendida
+	// Validar que solo hay	a una partición extendida
 	if type_ == "e" && extendedCount > 0 {
 		fmt.Println("Error: Solo se permite una partición extendida por disco.")
+		*messages = append(*messages, "Error: Solo se permite una partición extendida por disco.")
+
 		return
 	}
 
 	// Validar que no se pueda crear una partición lógica sin una extendida
 	if type_ == "l" && extendedCount == 0 {
 		fmt.Println("Error: No se puede crear una partición lógica sin una partición extendida.")
+		*messages = append(*messages, "Error: No se puede crear una partición lógica sin una partición extendida.")
+
 		return
 	}
 
 	// Validar que el tamaño de la nueva partición no exceda el tamaño del disco
 	if usedSpace+int32(size) > TempMBR.MbrSize {
 		fmt.Println("Error: No hay suficiente espacio en el disco para crear esta partición.")
+		*messages = append(*messages, "Error: No hay suficiente espacio en el disco para crear esta partición.")
+		
 		return
 	}
 
@@ -413,15 +427,17 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	defer file.Close()
 
 	fmt.Println("======FIN FDISK======")
+	*messages = append(*messages, "======FIN FDISK======")
 	fmt.Println("")
 
 }
 
 // Función para montar particiones
-func Mount(path string, name string) {
+func Mount(path string, name string, messages *[]string) {
 	file, err := Utilities.OpenFile(path)
 	if err != nil {
 		fmt.Println("Error: No se pudo abrir el archivo en la ruta:", path)
+		*messages = append(*messages, "Error: No se pudo abrir el archivo en la ruta:", path)
 		return
 	}
 	defer file.Close()
@@ -429,10 +445,12 @@ func Mount(path string, name string) {
 	var TempMBR Structs.MRB
 	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
 		fmt.Println("Error: No se pudo leer el MBR desde el archivo")
+		*messages = append(*messages, "Error: No se pudo leer el MBR desde el archivo")
 		return
 	}
 
 	fmt.Printf("Buscando partición con nombre: '%s'\n", name)
+	*messages = append(*messages, "Buscando partición con nombre: ", name)
 
 	partitionFound := false
 	var partition Structs.Partition
@@ -453,12 +471,15 @@ func Mount(path string, name string) {
 
 	if !partitionFound {
 		fmt.Println("Error: Partición no encontrada o no es una partición primaria")
+		*messages = append(*messages, "Error: Partición no encontrada o no es una partición primaria")
 		return
 	}
 
 	// Verificar si la partición ya está montada
 	if partition.Status[0] == '1' {
 		fmt.Println("Error: La partición ya está montada")
+		*messages = append(*messages, "Error: La partición ya está montada")
+
 		return
 	}
 
@@ -486,7 +507,7 @@ func Mount(path string, name string) {
 	}
 
 	// Incrementar el número para esta partición
-	carnet := "202401234" // Cambiar su carnet aquí
+	carnet := "202200329" // Cambiar su carnet aquí
 	lastTwoDigits := carnet[len(carnet)-2:]
 	partitionID := fmt.Sprintf("%s%d%c", lastTwoDigits, partitionIndex+1, letter)
 
@@ -504,14 +525,17 @@ func Mount(path string, name string) {
 	// Escribir el MBR actualizado al archivo
 	if err := Utilities.WriteObject(file, TempMBR, 0); err != nil {
 		fmt.Println("Error: No se pudo sobrescribir el MBR en el archivo")
+		*messages = append(*messages, "Error: No se pudo sobrescribir el MBR en el archivo")
 		return
 	}
 
 	fmt.Printf("Partición montada con ID: %s\n", partitionID)
+	*messages = append(*messages, "Partición montada con ID: ", partitionID)
 
 	fmt.Println("")
 	// Imprimir el MBR actualizado
 	fmt.Println("MBR actualizado:")
+	*messages = append(*messages, "MBR actualizado:")
 	Structs.PrintMBR(TempMBR)
 	fmt.Println("")
 

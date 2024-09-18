@@ -41,6 +41,13 @@ func getCommandAndParams(input string) (string, string) {
 func Analyze(input string, messages *[]string) {
 	lines := strings.Split(input, "\n")
 	for _, line := range lines {
+
+		if idx := strings.Index(line, "#"); idx != -1 {
+			comment := strings.TrimSpace(line[idx+1:]) // Extraer el comentario
+			*messages = append(*messages, comment) // Agregar a messages
+			line = line[:idx] // Eliminar el comentario de la línea para el procesamiento
+		}
+
 		command, params := getCommandAndParams(line)
 		AnalyzeCommnad(command, params, messages)
 	}
@@ -51,9 +58,9 @@ func AnalyzeCommnad(command string, params string, messages *[]string) {
 	if strings.Contains(command, "mkdisk") {
 		fn_mkdisk(params, messages)
 	} else if strings.Contains(command, "fdisk") {
-		fn_fdisk(params)
+		fn_fdisk(params, messages)
 	} else if strings.Contains(command, "mount") {
-		fn_mount(params)
+		fn_mount(params, messages)
 	} else if strings.Contains(command, "mkfs") {
 		fn_mkfs(params)
 	} else if strings.Contains(command, "login") {
@@ -95,6 +102,7 @@ func fn_mkdisk(params string, messages *[]string) {
 			fs.Set(flagName, flagValue)
 		default:
 			fmt.Println("Error: Flag not found")
+			*messages = append(*messages, "Error: Flag not found")
 		}
 	}
 
@@ -110,16 +118,19 @@ func fn_mkdisk(params string, messages *[]string) {
 	// Validaciones
 	if *size <= 0 {
 		fmt.Println("Error: Size must be greater than 0")
+		*messages = append(*messages, "Error: Size must be greater than 0" )
 		return
 	}
 
 	if *fit != "bf" && *fit != "ff" && *fit != "wf" {
 		fmt.Println("Error: Fit must be 'bf', 'ff', or 'wf'")
+		*messages = append(*messages, "Error: Fit must be 'bf', 'ff', or 'wf'")
 		return
 	}
 
 	if *unit != "k" && *unit != "m" {
 		fmt.Println("Error: Unit must be 'k' or 'm'")
+		*messages = append(*messages, "Error: Unit must be 'k' or 'm'")
 		return
 	}
 
@@ -174,7 +185,7 @@ func fn_rmdisk(params string, messages *[]string) {
 
 
 
-func fn_fdisk(input string) {
+func fn_fdisk(input string, mensajes *[]string) {
 	// Definir flags
 	fs := flag.NewFlagSet("fdisk", flag.ExitOnError)
 	size := fs.Int("size", 0, "Tamaño")
@@ -208,11 +219,14 @@ func fn_fdisk(input string) {
 	// Validaciones
 	if *size <= 0 {
 		fmt.Println("Error: Size must be greater than 0")
+		*mensajes = append(*mensajes, "Error: Size must be greater than 0")
 		return
 	}
 
 	if *path == "" {
 		fmt.Println("Error: Path is required")
+		*mensajes = append(*mensajes, "Error: Path is required")
+		
 		return
 	}
 
@@ -224,24 +238,27 @@ func fn_fdisk(input string) {
 	// Validar fit (b/w/f)
 	if *fit != "b" && *fit != "f" && *fit != "w" {
 		fmt.Println("Error: Fit must be 'b', 'f', or 'w'")
+		*mensajes = append(*mensajes, "Error: Fit must be 'b', 'f', or 'w'")
 		return
 	}
 
 	if *unit != "k" && *unit != "m" {
 		fmt.Println("Error: Unit must be 'k' or 'm'")
+		*mensajes = append(*mensajes, "Error: Unit must be 'k' or 'm'")
 		return
 	}
 
 	if *type_ != "p" && *type_ != "e" && *type_ != "l" {
 		fmt.Println("Error: Type must be 'p', 'e', or 'l'")
+		*mensajes = append(*mensajes,"Error: Type must be 'p', 'e', or 'l'")
 		return
 	}
 
 	// Llamar a la función
-	DiskManagement.Fdisk(*size, *path, *name, *unit, *type_, *fit)
+	DiskManagement.Fdisk(*size, *path, *name, *unit, *type_, *fit, mensajes)
 }
 
-func fn_mount(params string) {
+func fn_mount(params string, mensajes *[]string) {
 	fs := flag.NewFlagSet("mount", flag.ExitOnError)
 	path := fs.String("path", "", "Ruta")
 	name := fs.String("name", "", "Nombre de la partición")
@@ -258,12 +275,13 @@ func fn_mount(params string) {
 
 	if *path == "" || *name == "" {
 		fmt.Println("Error: Path y Name son obligatorios")
+		*mensajes = append(*mensajes, "Error: Path y Name son obligatorios")
 		return
 	}
 
 	// Convertir el nombre a minúsculas antes de pasarlo al Mount
 	lowercaseName := strings.ToLower(*name)
-	DiskManagement.Mount(*path, lowercaseName)
+	DiskManagement.Mount(*path, lowercaseName, mensajes)
 }
 
 func fn_mkfs(input string) {
