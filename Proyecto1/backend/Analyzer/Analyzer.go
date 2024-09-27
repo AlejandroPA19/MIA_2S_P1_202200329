@@ -62,11 +62,11 @@ func AnalyzeCommnad(command string, params string, messages *[]string) {
 	} else if strings.Contains(command, "mount") {
 		fn_mount(params, messages)
 	} else if strings.Contains(command, "mkfs") {
-		fn_mkfs(params)
+		fn_mkfs(params, messages)
 	} else if strings.Contains(command, "login") {
-		fn_login(params)
+		fn_login(params, messages)
 	} else if strings.Contains(command, "rep") {
-		fn_rep(params)
+		fn_rep(params, messages)
 	}else if strings.Contains(command, "rmdisk"){
 		fn_rmdisk(params, messages)
 	} else {
@@ -229,22 +229,28 @@ func fn_fdisk(input string, mensajes *[]string) {
 		
 		return
 	}
-
-	// Si no se proporcionó un fit, usar el valor predeterminado "w"
-	if *fit == "" {
-		*fit = "w"
-	}
-
-	// Validar fit (b/w/f)
-	if *fit != "b" && *fit != "f" && *fit != "w" {
-		fmt.Println("Error: Fit must be 'b', 'f', or 'w'")
-		*mensajes = append(*mensajes, "Error: Fit must be 'b', 'f', or 'w'")
+	
+	if *name == "" {
+		fmt.Println("Error: Name is required")
+		*mensajes = append(*mensajes, "Error: Name is required")
 		return
 	}
 
-	if *unit != "k" && *unit != "m" {
+	// Si no se proporcionó un fit, usar el valor predeterminado "w"
+	if *fit == "" {
+		*fit = "wf"
+	}
+
+	// Validar fit (b/w/f)
+	if *fit != "bf" && *fit != "ff" && *fit != "wf" {
+		fmt.Println("Error: Fit must be 'b', 'f', or 'w'")
+		*mensajes = append(*mensajes, "Error: Fit must be 'b', 'f', or 'w' y es ", *fit)
+		return
+	}
+
+	if *unit != "k" && *unit != "m" && *unit != "b" {
 		fmt.Println("Error: Unit must be 'k' or 'm'")
-		*mensajes = append(*mensajes, "Error: Unit must be 'k' or 'm'")
+		*mensajes = append(*mensajes, "Error: Unit must be 'k' or 'm' or b")
 		return
 	}
 
@@ -284,7 +290,7 @@ func fn_mount(params string, mensajes *[]string) {
 	DiskManagement.Mount(*path, lowercaseName, mensajes)
 }
 
-func fn_mkfs(input string) {
+func fn_mkfs(input string, messages *[]string) {
 	fs := flag.NewFlagSet("mkfs", flag.ExitOnError)
 	id := fs.String("id", "", "Id")
 	type_ := fs.String("type", "", "Tipo")
@@ -319,10 +325,10 @@ func fn_mkfs(input string) {
 	}
 
 	// Llamar a la función
-	FileSystem.Mkfs(*id, *type_, *fs_)
+	FileSystem.Mkfs(*id, *type_, *fs_, messages)
 }
 
-func fn_login(input string) {
+func fn_login(input string, messages *[]string) {
 	// Definir las flags
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	user := fs.String("user", "", "Usuario")
@@ -350,11 +356,11 @@ func fn_login(input string) {
 		}
 	}
 
-	User.Login(*user, *pass, *id)
+	User.Login(*user, *pass, *id,messages)
 
 }
 
-func fn_rep(input string) {
+func fn_rep(input string, messages *[]string) {
 	fs := flag.NewFlagSet("rep", flag.ExitOnError)
 	name := fs.String("name", "", "Nombre del reporte a generar (mbr, disk, inode, block, bm_inode, bm_block, sb, file, ls)")
 	path := fs.String("path", "", "Ruta donde se generará el reporte")
@@ -365,7 +371,7 @@ func fn_rep(input string) {
 	matches := re.FindAllStringSubmatch(input, -1)
 	for _, match := range matches {
 		flagName := match[1]
-		flagValue := strings.Trim(match[2], "\"")
+		flagValue := strings.ToLower(strings.Trim(match[2], "\""))
 
 		switch flagName {
 		case "name", "path", "id", "path_file_ls":
@@ -469,6 +475,63 @@ func fn_rep(input string) {
 			fmt.Println("Error al generar el reporte MBR:", err)
 		} else {
 			fmt.Println("Reporte MBR generado exitosamente en:", reportPath)
+			*messages = append(*messages, "Reporte MBR generado exitosamente en:", reportPath)
+			// Renderizar el archivo .dot a .jpg usando Graphviz
+			dotFile := strings.TrimSuffix(reportPath, filepath.Ext(reportPath)) + ".dot"
+			outputJpg := reportPath
+			cmd := exec.Command("dot", "-Tjpg", dotFile, "-o", outputJpg)
+			err = cmd.Run()
+			if err != nil {
+				fmt.Println("Error al renderizar el archivo .dot a imagen:", err)
+			} else {
+				fmt.Println("Imagen generada exitosamente en:", outputJpg)
+				*messages = append(*messages, "Imagen generada exitosamente en:", outputJpg)
+			}
+		}
+
+	//CASE PARA EL REPORTE DISK
+	case "disk":
+		// Abrir el archivo binario del disco montado
+		file, err := Utilities.OpenFile(diskPath)
+		if err != nil {
+			fmt.Println("Error: No se pudo abrir el archivo en la ruta:", diskPath)
+			return
+		}
+		defer file.Close()
+
+		// Leer el objeto MBR desde el archivo binario
+		var TempMBR Structs.MRB
+		if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
+			fmt.Println("Error: No se pudo leer el MBR desde el archivo")
+			return
+		}
+
+		// Leer y procesar los EBRs si hay particiones extendidas
+		var ebrs []Structs.EBR
+		for i := 0; i < 4; i++ {
+			if string(TempMBR.Partitions[i].Type[:]) == "e" { // Partición extendida
+				ebrPosition := TempMBR.Partitions[i].Start
+				for ebrPosition != -1 {
+					var tempEBR Structs.EBR
+					if err := Utilities.ReadObject(file, &tempEBR, int64(ebrPosition)); err != nil {
+						break
+					}
+					ebrs = append(ebrs, tempEBR)
+					ebrPosition = tempEBR.PartNext
+				}
+			}
+		}
+
+		// Calcular el tamaño total del disco
+		totalDiskSize := TempMBR.MbrSize
+
+		// Generar el archivo .dot del DISK
+		reportPath := *path
+		if err := Utilities.GenerateDiskReport(TempMBR, ebrs, reportPath, file, totalDiskSize); err != nil {
+			fmt.Println("Error al generar el reporte DISK:", err)
+		} else {
+			fmt.Println("Reporte DISK generado exitosamente en:", reportPath)
+			*messages = append(*messages, "Reporte DISK generado exitosamente en:", reportPath)
 
 			// Renderizar el archivo .dot a .jpg usando Graphviz
 			dotFile := strings.TrimSuffix(reportPath, filepath.Ext(reportPath)) + ".dot"
@@ -479,6 +542,7 @@ func fn_rep(input string) {
 				fmt.Println("Error al renderizar el archivo .dot a imagen:", err)
 			} else {
 				fmt.Println("Imagen generada exitosamente en:", outputJpg)
+				*messages = append(*messages, "Imagen generada exitosamente en:", outputJpg)
 			}
 		}
 
@@ -497,3 +561,4 @@ func fn_rep(input string) {
 		fmt.Println("Error: Tipo de reporte no válido.")
 	}
 }
+

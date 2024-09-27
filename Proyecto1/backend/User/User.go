@@ -4,13 +4,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strings"
+
 	"github.com/AlejandroPA19/MIA_2S_P1_202200329/DiskManagement"
 	"github.com/AlejandroPA19/MIA_2S_P1_202200329/Structs"
 	"github.com/AlejandroPA19/MIA_2S_P1_202200329/Utilities"
-	"strings"
 )
 
-func Login(user string, pass string, id string) {
+func Login(user string, pass string, id string, messages *[]string) {
 	fmt.Println("======Start LOGIN======")
 	fmt.Println("User:", user)
 	fmt.Println("Pass:", pass)
@@ -24,11 +25,12 @@ func Login(user string, pass string, id string) {
 
 	for _, partitions := range mountedPartitions {
 		for _, partition := range partitions {
-			if partition.ID == id && partition.LoggedIn { // Verifica si ya está logueado
+			if strings.ToLower(partition.ID) == strings.ToLower(id) && partition.LoggedIn { // Verifica si ya está logueado
 				fmt.Println("Ya existe un usuario logueado!")
+				*messages = append(*messages, "Ya existe un usuario logueado")
 				return
 			}
-			if partition.ID == id { // Encuentra la partición correcta
+			if strings.ToLower(partition.ID) == strings.ToLower(id) { // Encuentra la partición correcta
 				filepath = partition.Path
 				partitionFound = true
 				break
@@ -129,6 +131,7 @@ func Login(user string, pass string, id string) {
 	// Si las credenciales son correctas y marcamos como logueado
 	if login {
 		fmt.Println("Usuario logueado con exito")
+		*messages = append(*messages, "Usuario logueado con exito")
 		DiskManagement.MarkPartitionAsLoggedIn(id) // Marcar la partición como logueada
 	}
 

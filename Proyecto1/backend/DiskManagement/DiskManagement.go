@@ -25,11 +25,12 @@ type MountedPartition struct {
 var mountedPartitions = make(map[string][]MountedPartition)
 
 // Función para imprimir las particiones montadas
-func PrintMountedPartitions() {
+func PrintMountedPartitions(messages *[]string) {
 	fmt.Println("Particiones montadas:")
-
+	*messages = append(*messages, "-------Particiones Montadas----------")
 	if len(mountedPartitions) == 0 {
 		fmt.Println("No hay particiones montadas.")
+		*messages = append(*messages, "No hay particiones montadas.")
 		return
 	}
 
@@ -42,6 +43,9 @@ func PrintMountedPartitions() {
 			}
 			fmt.Printf(" - Partición Name: %s, ID: %s, Path: %s, Status: %c, LoggedIn: %s\n",
 				partition.Name, partition.ID, partition.Path, partition.Status, loginStatus)
+
+			*messages = append(*messages, " - Partición Name: %s, ID: %s, Path: %s, Status: %c, LoggedIn: %s\n",
+				partition.Name, partition.ID, partition.Path, string(partition.Status), loginStatus)
 		}
 	}
 	fmt.Println("")
@@ -77,7 +81,6 @@ func Mkdisk(size int, fit string, unit string, path string, messages *[]string) 
 	if fit != "bf" && fit != "wf" && fit != "ff" {
 		fmt.Println("Error: Fit debe ser bf, wf or ff")
 		*messages = append(*messages, "Error: Fit debe ser bf, wf or ff")
-		fmt.Println(messages)
 		return
 	}
 
@@ -92,7 +95,6 @@ func Mkdisk(size int, fit string, unit string, path string, messages *[]string) 
 	if unit != "k" && unit != "m" {
 		fmt.Println("Error: Las unidades validas son k o m")
 		*messages = append(*messages, "Error: Las unidades validas son k o m")
-		fmt.Println(messages)
 		return
 	}
 
@@ -173,7 +175,6 @@ func Mkdisk(size int, fit string, unit string, path string, messages *[]string) 
     
 	fmt.Println("Disco creado en", path)
 	*messages = append(*messages, "FIN MKDISK, disco creado en "+path)
-	fmt.Println(messages)
 
 	
 }
@@ -214,7 +215,7 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	fmt.Println("Fit:", fit)
 
 	// Validar fit (b/w/f)
-	if fit != "b" && fit != "f" && fit != "w" {
+	if fit != "bf" && fit != "ff" && fit != "wf" {
 		fmt.Println("Error: Fit must be 'b', 'f', or 'w'")
 		*messages = append(*messages, "Error: Fit must be 'b', 'f', or 'w'")
 		return
@@ -303,13 +304,16 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 		return
 	}
 
-	// Validar que el tamaño de la nueva partición no exceda el tamaño del disco
-	if usedSpace+int32(size) > TempMBR.MbrSize {
+	// Calcular el espacio libre en el disco
+	freeSpace := TempMBR.MbrSize - usedSpace
+
+	// Validar que el tamaño de la nueva partición no exceda el espacio libre
+	if int32(size) > freeSpace {
 		fmt.Println("Error: No hay suficiente espacio en el disco para crear esta partición.")
 		*messages = append(*messages, "Error: No hay suficiente espacio en el disco para crear esta partición.")
-		
 		return
 	}
+
 
 	// Determinar la posición de inicio de la nueva partición
 	var gap int32 = int32(binary.Size(TempMBR))
@@ -427,7 +431,7 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 	defer file.Close()
 
 	fmt.Println("======FIN FDISK======")
-	*messages = append(*messages, "======FIN FDISK======")
+	*messages = append(*messages, "Particion con el nombre ", name, " Fue creada en ", path)
 	fmt.Println("")
 
 }
@@ -535,12 +539,13 @@ func Mount(path string, name string, messages *[]string) {
 	fmt.Println("")
 	// Imprimir el MBR actualizado
 	fmt.Println("MBR actualizado:")
-	*messages = append(*messages, "MBR actualizado:")
+	*messages = append(*messages, "MBR actualizado")
+
 	Structs.PrintMBR(TempMBR)
 	fmt.Println("")
 
 	// Imprimir las particiones montadas (solo estan mientras dure la sesion de la consola)
-	PrintMountedPartitions()
+	PrintMountedPartitions(messages)
 
 }
 
@@ -556,3 +561,50 @@ func getLastDiskID() string {
 func generateDiskID(path string) string {
 	return strings.ToLower(path)
 }
+
+
+
+// Función para desmontar todas las particiones montadas
+func UnmountDisks() {
+    // Iterar sobre cada disco en el mapa de particiones activas
+    for diskID, partitionsOnDisk := range mountedPartitions {
+        // Intentar abrir el archivo MBR asociado al disco
+        fileHandle, err := Utilities.OpenFile(partitionsOnDisk[0].Path)
+        if err != nil {
+            fmt.Println("Error: No se puede acceder al archivo en:", partitionsOnDisk[0].Path)
+            continue
+        }
+        defer fileHandle.Close()
+
+        // Leer el MBR del archivo
+        var mbrData Structs.MRB
+        errr := Utilities.ReadObject(fileHandle, &mbrData, 0)
+		if errr!= nil {
+			fmt.Println("Error: No se pudo recuperar el MBR del archivo")
+			continue
+		}
+        // Actualizar el estado de todas las particiones en el MBR
+        for index := range mbrData.Partitions {
+            if mbrData.Partitions[index].Size > 0 {
+                mbrData.Partitions[index].Status[0] = '0' // Marcar la partición como desmontada
+                mbrData.Partitions[index].Id = [4]byte{}  // Eliminar el ID de la partición
+            }
+        }
+
+        // Guardar el MBR actualizado en el archivo
+        if err := Utilities.WriteObject(fileHandle, mbrData, 0); err != nil {
+            fmt.Println("Error: No se pudo escribir el MBR actualizado en el archivo")
+            continue
+        }
+
+        // Eliminar las particiones montadas de la memoria
+        delete(mountedPartitions, diskID)
+    }
+
+    // Reiniciar el mapa de particiones montadas a un estado vacío
+    mountedPartitions = make(map[string][]MountedPartition)
+    
+    fmt.Println("Todas las particiones han sido desmontadas exitosamente.")
+}
+
+

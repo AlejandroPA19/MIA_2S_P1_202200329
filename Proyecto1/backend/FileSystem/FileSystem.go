@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func Mkfs(id string, type_ string, fs_ string) {
+func Mkfs(id string, type_ string, fs_ string, messages *[]string) {
 	fmt.Println("======INICIO MKFS======")
 	fmt.Println("Id:", id)
 	fmt.Println("Type:", type_)
@@ -22,7 +22,7 @@ func Mkfs(id string, type_ string, fs_ string) {
 
 	for _, partitions := range DiskManagement.GetMountedPartitions() {
 		for _, partition := range partitions {
-			if partition.ID == id {
+			if strings.ToLower(partition.ID) == strings.ToLower(id) {
 				mountedPartition = partition
 				partitionFound = true
 				break
@@ -64,7 +64,7 @@ func Mkfs(id string, type_ string, fs_ string) {
 	// Iterar sobre las particiones para encontrar la que tiene el nombre correspondiente
 	for i := 0; i < 4; i++ {
 		if TempMBR.Partitions[i].Size != 0 {
-			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), id) {
+			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), strings.ToLower(id)) {
 				index = i
 				break
 			}
@@ -119,7 +119,7 @@ func Mkfs(id string, type_ string, fs_ string) {
 
 	// Cerrar archivo binario
 	defer file.Close()
-
+	*messages = append(*messages, "Final de formateo con MKFS")
 	fmt.Println("======FIN MKFS======")
 }
 

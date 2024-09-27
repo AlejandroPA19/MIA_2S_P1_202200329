@@ -39,17 +39,19 @@ button:hover {
 
 .console-output {
   background-color: #000;
-  color: #fff;
-  min-height: 200px;
-  width: 800px;
-  height: 450px;
-  max-width: 600px;
+  color: #57f55f;
+  height: 450px; /* Altura fija para la consola */
+  width: 800px; /* Ajusta según tus necesidades */
   font-family: monospace;
   border: 1px solid #ccc;
   margin: 0 10px; /* Espacio horizontal entre componentes */
-  align-items: flex-start;
   margin-top: 10px;
+  padding: 10px; /* Espacio interno para el contenido */
+  overflow-y: auto; /* Añade scroll si el contenido excede la altura */
+  white-space: pre-wrap; /* Mantiene los saltos de línea y espacios */
 }
+
+
 
 .Container{
   display: flex;

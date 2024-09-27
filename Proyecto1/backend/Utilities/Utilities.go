@@ -161,3 +161,96 @@ func GenerateMBRReport(mbr Structs.MRB, ebrs []Structs.EBR, outputPath string, f
 	fmt.Println("Reporte MBR generado exitosamente en:", dotFilePath)
 	return nil
 }
+
+// Función para generar el reporte DISK en formato .dot
+func GenerateDiskReport(mbr Structs.MRB, ebrs []Structs.EBR, outputPath string, file *os.File, totalDiskSize int32) error {
+    // Crear la carpeta si no existe
+    reportsDir := filepath.Dir(outputPath)
+    err := os.MkdirAll(reportsDir, os.ModePerm)
+    if err != nil {
+        return fmt.Errorf("Error al crear la carpeta de reportes: %v", err)
+    }
+
+    // Crear el archivo .dot donde se generará el reporte
+    dotFilePath := strings.TrimSuffix(outputPath, filepath.Ext(outputPath)) + ".dot"
+    fileDot, err := os.Create(dotFilePath)
+    if err != nil {
+        return fmt.Errorf("Error al crear el archivo .dot de reporte: %v", err)
+    }
+    defer fileDot.Close()
+
+    // Iniciar el contenido del archivo en formato Graphviz (.dot)
+    content := "digraph G {\n"
+    content += "\tnode [shape=none];\n"
+    content += "\tgraph [splines=false];\n"
+    content += "\tsubgraph cluster_disk {\n"
+    content += "\t\tlabel=\"Disco.dsk\";\n"
+    content += "\t\tstyle=rounded;\n"
+    content += "\t\tcolor=black;\n"
+
+    // Iniciar tabla para las particiones
+    content += "\t\ttable [label=<\n"
+    content += "\t\t\t<TABLE BORDER=\"1\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"10\">\n"
+    content += "\t\t\t<TR>\n"
+    content += "\t\t\t<TD BGCOLOR=\"lightgray\"><B>MBR (159 bytes)</B></TD>\n"
+
+    // Variables para el porcentaje y espacio libre
+    var usedSpace int32 = 159 // Tamaño del MBR en bytes
+    var freeSpace int32 = totalDiskSize - usedSpace
+
+    for i := 0; i < 4; i++ {
+        part := mbr.Partitions[i]
+        if part.Size > 0 { // Si la partición tiene un tamaño válido
+            percentage := float64(part.Size) / float64(totalDiskSize) * 100
+            partName := strings.TrimRight(string(part.Name[:]), "\x00") // Limpiar el nombre de la partición
+
+            if string(part.Type[:]) == "p" { // Partición primaria
+                content += fmt.Sprintf("\t\t\t<TD BGCOLOR=\"lightblue\"><B>Primaria</B><br/>%s<br/>%.2f%% del disco</TD>\n", partName, percentage)
+                usedSpace += part.Size
+            } else if string(part.Type[:]) == "e" { // Partición extendida
+                var usedSpaceE int32 = 0
+                content += "\t\t\t<TD BGCOLOR=\"lightyellow\">\n"
+                content += "\t\t\t\t<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"5\">\n"
+                content += fmt.Sprintf("\t\t\t\t<TR><TD COLSPAN=\"5\"><B>Extendida</B></TD></TR>\n")
+
+                // Leer los EBRs y agregar las particiones lógicas
+                content += "\t\t\t\t<TR>\n"
+                for _, ebr := range ebrs {
+                    usedSpaceE += ebr.PartSize + 32
+                    logicalPercentage := float64(ebr.PartSize) / float64(totalDiskSize) * 100
+                    content += fmt.Sprintf("\t\t\t\t<TD BGCOLOR=\"lightgray\">EBR (32 bytes)</TD>\n")
+                    content += fmt.Sprintf("\t\t\t\t<TD BGCOLOR=\"lightgreen\"><B>Lógica</B><br/>%.2f%% del disco</TD>\n", logicalPercentage)
+                    usedSpace += ebr.PartSize + 32 // Añadir el tamaño de la partición lógica y el EBR
+                }
+
+                freeSpaceE := part.Size - usedSpaceE
+                usedSpace+=freeSpaceE
+                porcentFreeE := float64(freeSpaceE) / float64(totalDiskSize) * 100
+                content += fmt.Sprintf("\t\t\t\t<TD BGCOLOR=\"lightgray\">Espacio Libre E<br/>%.2f%% del disco</TD>\n", porcentFreeE)
+                content += "\t\t\t\t</TR>\n"
+                content += "\t\t\t\t</TABLE>\n"
+                content += "\t\t\t</TD>\n"
+            }
+        }
+    }
+
+    // Recalcular el espacio libre
+    freeSpace = totalDiskSize - usedSpace
+    freePercentage := float64(freeSpace) / float64(totalDiskSize) * 100
+
+    // Agregar el espacio libre restante
+    content += fmt.Sprintf("\t\t\t<TD BGCOLOR=\"lightgray\">Libre<br/>%.2f%% del disco</TD>\n", freePercentage)
+    content += "\t\t\t</TR>\n"
+    content += "\t\t\t</TABLE>\n>];\n"
+    content += "\t}\n"
+    content += "}\n"
+
+    // Escribir el contenido en el archivo .dot
+    _, err = fileDot.WriteString(content)
+    if err != nil {
+        return fmt.Errorf("Error al escribir en el archivo .dot: %v", err)
+    }
+
+    fmt.Println("Reporte DISK generado exitosamente en:", dotFilePath)
+    return nil
+}

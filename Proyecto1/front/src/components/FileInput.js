@@ -14,14 +14,14 @@ const FileInput = ({ setConsoleOutput }) => {
   };
 
   const handleFileLoad = () => {
-    if (file && file.name.endsWith('.mia')) {
+    if (file && file.name.endsWith('.smia')) {
       const reader = new FileReader();
       reader.onload = (e) => {
         setText(e.target.result);
       };
       reader.readAsText(file);
     } else {
-      alert('Por favor selecciona un archivo con extensión .mia');
+      alert('Por favor selecciona un archivo con extensión .smia');
     }
   };
 
